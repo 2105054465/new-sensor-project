@@ -1,6 +1,24 @@
-#降低每帧 CPU 开销，给出优化前后的复杂度或实测数据；
-降低栈/静态内存占用，适配资源受限 MCU；
-处理计数溢出、边界阈值、冷启动有人、传感器坏点及噪声；
-改善状态机、命名、模块边界和可测试性；
-为关键边界和时序行为增加单元测试；
-可选：在保持整数实现的情况下改善信号滤波与自适应基线。
+1.降低每帧 CPU 开销，给出优化前后的复杂度或实测数据；
+
+sum_half()；max_column_sum()；max_consecutive_active_rows()；top3_row_fraction_percent()；这四个函数都独立遍历一遍，
+每次遍历都独立访问半区数据，造成CPU额外开销，可以放在相同的行列一次遍历里，复杂度：优化前：702*4=2816，优化后：702.
+
+2.降低栈/静态内存占用，适配资源受限 MCU；
+
+uint32_t column_sum[16];uint32_t row_sum[22];//临时数组uint32_t改成uint16_t就够了，16*255=4080；22*255=5610；
+
+3.处理计数溢出、边界阈值、冷启动有人、传感器坏点及噪声；
+
+原代码在开机第一帧压力 > 5000 时，会直接跳过校准并将检测阈值硬编码为 4，容易导致误报；
+将 sum_votes 的返回类型和累加器由 uint8_t 提升至 uint16_t，防止 SENSOR_VOTE_WINDOW 计数溢出；
+
+4.改善状态机、命名、模块边界和可测试性；
+函数命名：
+normalize_sample()	-> filter_sample()	处理单个传感器数据;finish_row()	-> calc_row()	计算当前行特征;finish_half_features()	-> calc_half()	计算半区特征
+update_motion_state()		更新运动状态
+update_one_side()		更新单侧状态
+SensorProcessor_Init()	-> sensor_init()	初始化处理器
+SensorProcessor_Process()	-> sensor_process() 处理一帧数据
+
+5.为关键边界和时序行为增加单元测试；
+
